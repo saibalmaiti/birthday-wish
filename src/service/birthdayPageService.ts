@@ -1,9 +1,19 @@
 import { supabase } from "../lib/supabase";
-import type { BirthdayConfig } from "../types/birthday";
+import type {
+  BirthdayConfig,
+  GalleryPhoto,
+} from "../types/birthday";
 
 type CreateBirthdayPageResult = {
   slug: string;
 };
+
+type UploadedBirthdayImages = {
+  galleryPhotos: GalleryPhoto[];
+  preciousImageSrc: string;
+};
+
+const STORAGE_BUCKET = "birthday-images";
 
 const generateSlug = () => {
   return crypto.randomUUID().replace(/-/g, "");
@@ -34,10 +44,6 @@ const getExpiresAt = (birthdayDate: string) => {
 
   // Keep the page active for the birthday
   // and the complete following day.
-  //
-  // Example:
-  // Birthday: 21 Dec 2026
-  // Expires: 23 Dec 2026 at 00:00
   const expiryDate = new Date(birthday);
 
   expiryDate.setDate(expiryDate.getDate() + 2);
@@ -46,11 +52,99 @@ const getExpiresAt = (birthdayDate: string) => {
   return expiryDate.toISOString();
 };
 
-export const createBirthdayPage = async (
-  config: BirthdayConfig
-): Promise<CreateBirthdayPageResult> => {
-  const slug = generateSlug();
+const getFileExtension = (file: File) => {
+  const extension = file.name
+    .split(".")
+    .pop()
+    ?.toLowerCase();
 
+  if (!extension) {
+    throw new Error(
+      `Could not determine the file type for ${file.name}.`
+    );
+  }
+
+  return extension;
+};
+
+const uploadFile = async (
+  slug: string,
+  folder: string,
+  file: File,
+  fileName: string
+): Promise<string> => {
+  const extension = getFileExtension(file);
+
+  const filePath =
+    `${slug}/${folder}/${fileName}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(filePath, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (error) {
+    console.error("Failed to upload image:", error);
+
+    throw new Error(
+      `Failed to upload ${file.name}. Please try again.`
+    );
+  }
+
+  const { data } = supabase.storage
+    .from(STORAGE_BUCKET)
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+};
+
+export const uploadBirthdayImages = async (
+  slug: string,
+  galleryPhotos: GalleryPhoto[],
+  galleryFiles: File[],
+  preciousImageFile: File
+): Promise<UploadedBirthdayImages> => {
+  if (galleryPhotos.length !== galleryFiles.length) {
+    throw new Error(
+      "Photo data does not match the selected files."
+    );
+  }
+
+  const uploadedGalleryPhotos = await Promise.all(
+    galleryPhotos.map(async (photo, index) => {
+      const publicUrl = await uploadFile(
+        slug,
+        "gallery",
+        galleryFiles[index],
+        `photo-${index + 1}`
+      );
+
+      return {
+        ...photo,
+        src: publicUrl,
+      };
+    })
+  );
+
+  const preciousImageSrc = await uploadFile(
+    slug,
+    "precious",
+    preciousImageFile,
+    "precious"
+  );
+
+  return {
+    galleryPhotos: uploadedGalleryPhotos,
+    preciousImageSrc,
+  };
+};
+
+export const createBirthdayPage = async (
+  config: BirthdayConfig,
+  slug: string
+): Promise<CreateBirthdayPageResult> => {
   const expiresAt = getExpiresAt(
     config.birthdayDate
   );
@@ -93,4 +187,8 @@ export const createBirthdayPage = async (
   return {
     slug: data.slug,
   };
+};
+
+export const generateBirthdaySlug = () => {
+  return generateSlug();
 };
