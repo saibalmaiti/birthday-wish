@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { FormEvent, ReactNode } from "react";
+import type {
+  ChangeEvent,
+  FormEvent,
+  ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
 
 import type {
@@ -10,9 +14,20 @@ import type {
   GiftConfig,
 } from "../types/birthday";
 
-import { createBirthdayPage } from "../service/birthdayPageService";
+import {
+  createBirthdayPage,
+  generateBirthdaySlug,
+  uploadBirthdayImages,
+} from "../service/birthdayPageService";
 
 const MAX_PHOTOS = 6;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_FILE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
 
 const ALLOWED_ROTATIONS = [-3, -2, -1, 1, 2, 3];
 
@@ -88,6 +103,10 @@ const CreateBirthday = () => {
     []
   );
 
+  const [galleryFiles, setGalleryFiles] = useState<
+    File[]
+  >([]);
+
   const [galleryError, setGalleryError] =
     useState("");
 
@@ -102,8 +121,15 @@ const CreateBirthday = () => {
   const [preciousThing, setPreciousThing] =
     useState("smile");
 
-  const [preciousImageSrc, setPreciousImageSrc] =
-    useState("");
+  const [
+    preciousImageFile,
+    setPreciousImageFile,
+  ] = useState<File | null>(null);
+
+  const [
+    preciousImagePreview,
+    setPreciousImagePreview,
+  ] = useState("");
 
   const [
     preciousImageError,
@@ -154,9 +180,6 @@ const CreateBirthday = () => {
   // Submission state
   // --------------------------------
 
-  const [isValidatingImages, setIsValidatingImages] =
-    useState(false);
-
   const [isCreating, setIsCreating] =
     useState(false);
 
@@ -164,56 +187,130 @@ const CreateBirthday = () => {
     useState("");
 
   // --------------------------------
+  // File validation
+  // --------------------------------
+
+  const validateImageFile = (
+    file: File
+  ): string | null => {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      return "Only JPEG, PNG and WebP images are supported.";
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return "Each image must be smaller than 5 MB.";
+    }
+
+    return null;
+  };
+
+  // --------------------------------
   // Gallery functions
   // --------------------------------
 
-  const addPhoto = () => {
-    if (photos.length >= MAX_PHOTOS) {
+  const handleGalleryFilesChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles = Array.from(
+      event.target.files || []
+    );
+
+    if (!selectedFiles.length) {
       return;
     }
 
-    const newPhoto: GalleryPhoto = {
-      id: crypto.randomUUID(),
-      src: "",
-      caption: "",
-      rotation: getRandomRotation(),
-    };
+    const remainingSlots =
+      MAX_PHOTOS - photos.length;
+
+    if (selectedFiles.length > remainingSlots) {
+      setGalleryError(
+        `You can upload only ${remainingSlots} more photo${
+          remainingSlots === 1 ? "" : "s"
+        }.`
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    for (const file of selectedFiles) {
+      const validationError =
+        validateImageFile(file);
+
+      if (validationError) {
+        setGalleryError(
+          `${file.name}: ${validationError}`
+        );
+
+        event.target.value = "";
+        return;
+      }
+    }
+
+    const newPhotos: GalleryPhoto[] =
+      selectedFiles.map((file) => ({
+        id: crypto.randomUUID(),
+        src: URL.createObjectURL(file),
+        caption: "",
+        rotation: getRandomRotation(),
+      }));
 
     setPhotos((previous) => [
       ...previous,
-      newPhoto,
+      ...newPhotos,
+    ]);
+
+    setGalleryFiles((previous) => [
+      ...previous,
+      ...selectedFiles,
     ]);
 
     setGalleryError("");
+
+    // Allow selecting the same file again
+    event.target.value = "";
   };
 
-  const updatePhoto = (
+  const updatePhotoCaption = (
     id: GalleryPhoto["id"],
-    field: "src" | "caption",
-    value: string
+    caption: string
   ) => {
     setPhotos((previous) =>
       previous.map((photo) =>
         photo.id === id
           ? {
               ...photo,
-              [field]: value,
+              caption,
             }
           : photo
       )
     );
-
-    if (field === "src") {
-      setGalleryError("");
-    }
   };
 
   const removePhoto = (
     id: GalleryPhoto["id"]
   ) => {
+    const photoIndex = photos.findIndex(
+      (photo) => photo.id === id
+    );
+
+    if (photoIndex === -1) {
+      return;
+    }
+
+    const removedPhoto = photos[photoIndex];
+
+    if (removedPhoto.src.startsWith("blob:")) {
+      URL.revokeObjectURL(removedPhoto.src);
+    }
+
     setPhotos((previous) =>
+      previous.filter((photo) => photo.id !== id)
+    );
+
+    setGalleryFiles((previous) =>
       previous.filter(
-        (photo) => photo.id !== id
+        (_, index) => index !== photoIndex
       )
     );
 
@@ -221,39 +318,41 @@ const CreateBirthday = () => {
   };
 
   // --------------------------------
-  // Image URL validation
+  // Precious image
   // --------------------------------
 
-  const validateImageUrl = (
-    url: string
-  ): Promise<boolean> => {
-    return new Promise((resolve) => {
-      try {
-        const parsedUrl = new URL(url);
+  const handlePreciousImageChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
 
-        if (
-          parsedUrl.protocol !== "http:" &&
-          parsedUrl.protocol !== "https:"
-        ) {
-          resolve(false);
-          return;
-        }
+    if (!file) {
+      return;
+    }
 
-        const image = new Image();
+    const validationError =
+      validateImageFile(file);
 
-        image.onload = () => {
-          resolve(true);
-        };
+    if (validationError) {
+      setPreciousImageError(validationError);
+      event.target.value = "";
+      return;
+    }
 
-        image.onerror = () => {
-          resolve(false);
-        };
+    if (preciousImagePreview) {
+      URL.revokeObjectURL(
+        preciousImagePreview
+      );
+    }
 
-        image.src = url;
-      } catch {
-        resolve(false);
-      }
-    });
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setPreciousImageFile(file);
+    setPreciousImagePreview(previewUrl);
+    setPreciousImageError("");
+
+    event.target.value = "";
   };
 
   // --------------------------------
@@ -318,15 +417,9 @@ const CreateBirthday = () => {
       return;
     }
 
-    const emptyPhotoIndex = photos.findIndex(
-      (photo) => !photo.src.trim()
-    );
-
-    if (emptyPhotoIndex !== -1) {
+    if (galleryFiles.length !== MAX_PHOTOS) {
       setGalleryError(
-        `Please enter an image URL for Photo ${
-          emptyPhotoIndex + 1
-        }.`
+        "Please select all 6 photos again."
       );
       return;
     }
@@ -335,9 +428,9 @@ const CreateBirthday = () => {
     // Precious image validation
     // --------------------------------
 
-    if (!preciousImageSrc.trim()) {
+    if (!preciousImageFile) {
       setPreciousImageError(
-        "Please add a photo for the precious thing."
+        "Please select a photo for the precious thing."
       );
       return;
     }
@@ -391,51 +484,6 @@ const CreateBirthday = () => {
     }
 
     // --------------------------------
-    // Validate all images
-    // --------------------------------
-
-    setIsValidatingImages(true);
-
-    try {
-      const galleryValidationResults =
-        await Promise.all(
-          photos.map((photo) =>
-            validateImageUrl(photo.src.trim())
-          )
-        );
-
-      const invalidPhotoIndex =
-        galleryValidationResults.findIndex(
-          (isValid) => !isValid
-        );
-
-      if (invalidPhotoIndex !== -1) {
-        setGalleryError(
-          `Photo ${
-            invalidPhotoIndex + 1
-          } could not be loaded. Please make sure the image is publicly accessible and the URL points to an actual image.`
-        );
-
-        return;
-      }
-
-      const isPreciousImageValid =
-        await validateImageUrl(
-          preciousImageSrc.trim()
-        );
-
-      if (!isPreciousImageValid) {
-        setPreciousImageError(
-          "This image could not be loaded. Please make sure it is publicly accessible and the URL points to an actual image."
-        );
-
-        return;
-      }
-    } finally {
-      setIsValidatingImages(false);
-    }
-
-    // --------------------------------
     // Build gift
     // --------------------------------
 
@@ -466,61 +514,65 @@ const CreateBirthday = () => {
     }
 
     // --------------------------------
-    // Build config
-    // --------------------------------
-
-    const config: BirthdayConfig = {
-      recipientName: recipientName.trim(),
-      version,
-      birthdayDate,
-
-      intro: {
-        eyebrow: introEyebrow.trim(),
-        titlePrefix: introTitlePrefix.trim(),
-        subtitle: introSubtitle.trim(),
-      },
-
-      birthday: {
-        happyText: happyText.trim(),
-        title: birthdayTitle.trim(),
-        message: birthdayMessage.trim(),
-      },
-
-      gallery: {
-        heading: galleryHeading.trim(),
-        highlightedText:
-          galleryHighlightedText.trim(),
-        description:
-          galleryDescription.trim(),
-        photos,
-      },
-
-      preciousThing: {
-        label: preciousLabel.trim(),
-        thing: preciousThing.trim(),
-        imageSrc: preciousImageSrc.trim(),
-        compliment:
-          preciousCompliment.trim(),
-      },
-
-      ...(gift ? { gift } : {}),
-    };
-
-    // --------------------------------
-    // Save to Supabase
+    // Upload and create
     // --------------------------------
 
     try {
       setIsCreating(true);
       setSubmitError("");
 
-      const result = await createBirthdayPage(
-        config
+      const slug = generateBirthdaySlug();
+
+      const {
+        galleryPhotos,
+        preciousImageSrc,
+      } = await uploadBirthdayImages(
+        slug,
+        photos,
+        galleryFiles,
+        preciousImageFile
       );
 
-      console.log(
-        "Birthday surprise created:",
-        result
+      const config: BirthdayConfig = {
+        recipientName: recipientName.trim(),
+        version,
+        birthdayDate,
+
+        intro: {
+          eyebrow: introEyebrow.trim(),
+          titlePrefix: introTitlePrefix.trim(),
+          subtitle: introSubtitle.trim(),
+        },
+
+        birthday: {
+          happyText: happyText.trim(),
+          title: birthdayTitle.trim(),
+          message: birthdayMessage.trim(),
+        },
+
+        gallery: {
+          heading: galleryHeading.trim(),
+          highlightedText:
+            galleryHighlightedText.trim(),
+          description:
+            galleryDescription.trim(),
+          photos: galleryPhotos,
+        },
+
+        preciousThing: {
+          label: preciousLabel.trim(),
+          thing: preciousThing.trim(),
+          imageSrc: preciousImageSrc,
+          compliment:
+            preciousCompliment.trim(),
+        },
+
+        ...(gift ? { gift } : {}),
+      };
+
+      const result = await createBirthdayPage(
+        config,
+        slug
       );
 
       navigate(`/created/${result.slug}`);
@@ -531,7 +583,9 @@ const CreateBirthday = () => {
       );
 
       setSubmitError(
-        "Something went wrong while creating the birthday surprise. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while creating the birthday surprise. Please try again."
       );
     } finally {
       setIsCreating(false);
@@ -708,30 +762,14 @@ const CreateBirthday = () => {
 
               <div className="mb-6 rounded-xl border border-pink-200/10 bg-pink-200/[0.04] p-4">
                 <p className="text-xs font-medium text-pink-100">
-                  Photo link instructions
+                  Upload photos
                 </p>
 
-                <ul className="mt-2 space-y-1 text-xs leading-5 text-white/40">
-                  <li>
-                    • You need exactly 6 publicly accessible
-                    photos.
-                  </li>
-                  <li>
-                    • Use direct image URLs whenever possible.
-                  </li>
-                  <li>
-                    • Google Drive or Google Photos images
-                    must be shared publicly.
-                  </li>
-                  <li>
-                    • Private or login-protected links will
-                    not work.
-                  </li>
-                  <li>
-                    • All images are checked before the
-                    birthday surprise is created.
-                  </li>
-                </ul>
+                <p className="mt-2 text-xs leading-5 text-white/40">
+                  Select exactly 6 photos from your device.
+                  JPEG, PNG and WebP images up to 5 MB are
+                  supported.
+                </p>
               </div>
 
               {galleryError && (
@@ -743,7 +781,7 @@ const CreateBirthday = () => {
               {photos.length === 0 && (
                 <div className="rounded-xl border border-dashed border-white/10 px-5 py-8 text-center">
                   <p className="text-sm text-white/35">
-                    No photos added yet.
+                    No photos selected yet.
                   </p>
 
                   <p className="mt-2 text-xs text-white/25">
@@ -775,56 +813,47 @@ const CreateBirthday = () => {
                         </button>
                       </div>
 
-                      <div className="space-y-4">
-                        <Input
-                          label="Photo URL"
-                          value={photo.src}
-                          onChange={(value) =>
-                            updatePhoto(
-                              photo.id,
-                              "src",
-                              value
-                            )
-                          }
-                          placeholder="https://..."
-                          required
-                        />
+                      <img
+                        src={photo.src}
+                        alt={`Preview ${index + 1}`}
+                        className="mb-4 h-48 w-full rounded-xl object-cover"
+                      />
 
-                        <Input
-                          label="Caption (optional)"
-                          value={
-                            photo.caption || ""
-                          }
-                          onChange={(value) =>
-                            updatePhoto(
-                              photo.id,
-                              "caption",
-                              value
-                            )
-                          }
-                          placeholder="Just a good picture."
-                        />
-                      </div>
+                      <Input
+                        label="Caption (optional)"
+                        value={photo.caption || ""}
+                        onChange={(value) =>
+                          updatePhotoCaption(
+                            photo.id,
+                            value
+                          )
+                        }
+                        placeholder="Just a good picture."
+                      />
                     </div>
                   )
                 )}
               </div>
 
               {photos.length < MAX_PHOTOS && (
-                <button
-                  type="button"
-                  onClick={addPhoto}
-                  className="mt-6 w-full rounded-xl border border-pink-200/20 bg-pink-200/10 px-4 py-3 text-sm text-pink-100 transition hover:bg-pink-200/20"
-                >
-                  + Add photo (
-                  {photos.length} / {MAX_PHOTOS})
-                </button>
+                <label className="mt-6 flex w-full cursor-pointer items-center justify-center rounded-xl border border-pink-200/20 bg-pink-200/10 px-4 py-3 text-sm text-pink-100 transition hover:bg-pink-200/20">
+                  + Select photo
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={
+                      handleGalleryFilesChange
+                    }
+                    className="hidden"
+                  />
+                </label>
               )}
 
               {photos.length === MAX_PHOTOS && (
                 <div className="mt-6 rounded-xl border border-green-400/10 bg-green-400/[0.04] px-4 py-3 text-center text-xs text-green-200/70">
-                  All 6 photos have been added. They will be
-                  checked when you create the surprise.
+                  All 6 photos have been selected and are
+                  ready to upload.
                 </div>
               )}
             </div>
@@ -847,20 +876,31 @@ const CreateBirthday = () => {
             />
 
             <div>
-              <Input
-                label="Photo URL"
-                value={preciousImageSrc}
-                onChange={(value) => {
-                  setPreciousImageSrc(value);
-                  setPreciousImageError("");
-                }}
-                placeholder="https://..."
-                required
-              />
+              <label className="block">
+                <span className="mb-2 block text-sm text-white/60">
+                  Photo
+                </span>
+
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={
+                    handlePreciousImageChange
+                  }
+                  className="block w-full rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-pink-200/10 file:px-3 file:py-2 file:text-sm file:text-pink-100"
+                />
+              </label>
+
+              {preciousImagePreview && (
+                <img
+                  src={preciousImagePreview}
+                  alt="Precious thing preview"
+                  className="mt-4 h-56 w-full rounded-xl object-cover"
+                />
+              )}
 
               <p className="mt-2 text-xs leading-5 text-white/35">
-                This photo is required and must be publicly
-                accessible.
+                Select a JPEG, PNG or WebP image up to 5 MB.
               </p>
 
               {preciousImageError && (
@@ -1015,26 +1055,22 @@ const CreateBirthday = () => {
 
           <motion.button
             type="submit"
-            disabled={
-              isValidatingImages || isCreating
-            }
+            disabled={isCreating}
             whileHover={
-              !isValidatingImages && !isCreating
+              !isCreating
                 ? { scale: 1.02 }
                 : undefined
             }
             whileTap={
-              !isValidatingImages && !isCreating
+              !isCreating
                 ? { scale: 0.98 }
                 : undefined
             }
             className="w-full rounded-2xl bg-pink-200 px-6 py-4 text-sm font-medium text-[#2a1022] shadow-lg shadow-pink-400/20 transition disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isValidatingImages
-              ? "Checking your photos..."
-              : isCreating
-                ? "Creating your surprise..."
-                : "Create birthday surprise →"}
+            {isCreating
+              ? "Uploading photos and creating..."
+              : "Create birthday surprise →"}
           </motion.button>
         </form>
       </div>
