@@ -54,11 +54,8 @@ const BirthdayReveal = ({
   recipientName,
   onComplete,
 }: BirthdayRevealProps) => {
-  const [phase, setPhase] =
-    useState<RevealPhase>("arrival");
-
-  const [balloons, setBalloons] =
-    useState<Balloon[]>([]);
+  const [phase, setPhase] = useState<RevealPhase>("arrival");
+  const [balloons, setBalloons] = useState<Balloon[]>([]);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -84,9 +81,6 @@ const BirthdayReveal = ({
         break;
 
       case "celebration":
-        timer = window.setTimeout(() => {
-          onComplete();
-        }, 8000);
         break;
 
       default:
@@ -98,10 +92,10 @@ const BirthdayReveal = ({
         window.clearTimeout(timer);
       }
     };
-  }, [phase, onComplete]);
+  }, [phase]);
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-6">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden px-5 py-10 sm:px-6 sm:py-16">
       {/* Balloons */}
       {phase === "celebration" && (
         <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
@@ -167,6 +161,73 @@ const BirthdayReveal = ({
         </div>
       )}
 
+      {/* Celebration decorations */}
+      {phase === "celebration" && (
+        <>
+          <div className="pointer-events-none absolute left-1/2 top-[45%] z-0 h-[450px] w-[450px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-pink-300/10 blur-[150px]" />
+
+          <motion.div
+            animate={{
+              y: [0, -8, 0],
+              rotate: [-4, 3, -4],
+            }}
+            transition={{
+              duration: 5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="pointer-events-none absolute left-[4%] top-[18%] z-0 text-4xl opacity-35 sm:left-[10%] sm:text-6xl"
+          >
+            🌸
+          </motion.div>
+
+          <motion.div
+            animate={{
+              y: [0, 10, 0],
+              rotate: [3, -3, 3],
+            }}
+            transition={{
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="pointer-events-none absolute right-[4%] top-[25%] z-0 text-4xl opacity-35 sm:right-[10%] sm:text-6xl"
+          >
+            🌷
+          </motion.div>
+
+          <motion.div
+            animate={{
+              y: [0, -7, 0],
+              rotate: [-3, 3, -3],
+            }}
+            transition={{
+              duration: 5.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="pointer-events-none absolute bottom-[12%] left-[5%] z-0 text-3xl opacity-30 sm:left-[14%] sm:text-5xl"
+          >
+            🌼
+          </motion.div>
+
+          <motion.div
+            animate={{
+              y: [0, 8, 0],
+              rotate: [4, -2, 4],
+            }}
+            transition={{
+              duration: 6.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="pointer-events-none absolute bottom-[18%] right-[5%] z-0 text-3xl opacity-30 sm:right-[14%] sm:text-5xl"
+          >
+            🌺
+          </motion.div>
+        </>
+      )}
+
       <AnimatePresence mode="wait">
         {/* Phase 1 */}
         {phase === "arrival" && (
@@ -191,7 +252,7 @@ const BirthdayReveal = ({
               duration: 1,
               ease: "easeInOut",
             }}
-            className="text-center"
+            className="relative z-10 text-center"
           >
             <motion.div
               animate={{
@@ -251,7 +312,7 @@ const BirthdayReveal = ({
               duration: 1,
               ease: "easeOut",
             }}
-            className="text-center"
+            className="relative z-10 text-center"
           >
             <motion.div
               animate={{
@@ -308,7 +369,7 @@ const BirthdayReveal = ({
               duration: 0.9,
               ease: "easeInOut",
             }}
-            className="text-center"
+            className="relative z-10 text-center"
           >
             <motion.div
               initial={{ scale: 1 }}
@@ -363,7 +424,7 @@ const BirthdayReveal = ({
               duration: 1.1,
               ease: "easeOut",
             }}
-            className="relative z-10 text-center"
+            className="relative z-10 mx-auto w-full max-w-xl text-center"
           >
             <motion.p
               initial={{
@@ -378,7 +439,7 @@ const BirthdayReveal = ({
                 duration: 1,
                 ease: "easeOut",
               }}
-              className="text-sm font-medium text-pink-200"
+              className="text-xs font-medium text-pink-200 sm:text-sm"
             >
               {birthday.happyText}
             </motion.p>
@@ -417,12 +478,124 @@ const BirthdayReveal = ({
                 delay: 1.1,
                 duration: 0.8,
               }}
-              className="mt-5 text-2xl font-light text-pink-200 md:text-3xl"
+              className="mt-4 text-2xl font-light text-pink-200 md:text-3xl"
             >
               {recipientName} ❤️
             </motion.h2>
 
-            <motion.p
+            {/* Birthday letter */}
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: 25,
+                rotate: -1,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                rotate: 0,
+              }}
+              transition={{
+                delay: 1.7,
+                duration: 0.9,
+                ease: "easeOut",
+              }}
+              className="relative mt-8"
+            >
+              <div className="absolute inset-x-3 -bottom-3 top-3 rotate-[1deg] rounded-[2rem] border border-pink-200/10 bg-pink-200/[0.05]" />
+
+              <div className="absolute inset-x-5 -bottom-5 top-5 -rotate-[1deg] rounded-[2rem] border border-white/5 bg-white/[0.03]" />
+
+              <div className="relative overflow-hidden rounded-[2rem] border border-pink-200/20 bg-gradient-to-br from-pink-100/[0.12] via-white/[0.07] to-pink-200/[0.05] px-6 pb-7 pt-8 text-left shadow-2xl shadow-black/20 backdrop-blur-md sm:px-9 sm:pb-9">
+                <div className="absolute left-0 top-0 h-16 w-16 rounded-br-full bg-pink-200/10" />
+
+                <div className="absolute right-4 top-3 text-3xl sm:text-4xl">
+                  🌸
+                </div>
+
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    scale: 0.7,
+                    rotate: -10,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    rotate: 0,
+                  }}
+                  transition={{
+                    delay: 2.1,
+                    duration: 0.6,
+                    ease: "easeOut",
+                  }}
+                  className="absolute -left-2 -top-3 text-5xl sm:text-6xl"
+                >
+                  🐼
+                </motion.div>
+
+                <motion.div
+                  animate={{
+                    y: [0, -5, 0],
+                    rotate: [-2, 2, -2],
+                  }}
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="absolute -bottom-2 -right-1 text-5xl sm:text-6xl"
+                >
+                  💐
+                </motion.div>
+
+                <div className="relative z-10 pt-5">
+                  <div className="flex items-center gap-3">
+                    <span className="h-px flex-1 bg-pink-200/20" />
+
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-pink-100/60">
+                      Just for you
+                    </p>
+
+                    <span className="h-px flex-1 bg-pink-200/20" />
+                  </div>
+
+                  <p className="mt-6 text-base italic text-pink-100/90">
+                    Dear {recipientName},
+                  </p>
+
+                  <motion.p
+                    initial={{
+                      opacity: 0,
+                      y: 12,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    transition={{
+                      delay: 2.25,
+                      duration: 0.8,
+                    }}
+                    className="mt-5 whitespace-pre-line text-sm leading-7 text-white/70 sm:text-base sm:leading-8"
+                  >
+                    {birthday.message}
+                  </motion.p>
+
+                  <div className="mt-7 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 text-xs text-pink-100/45">
+                      <span>Made with</span>
+                      <span className="text-sm">❤️</span>
+                    </div>
+
+                    <span className="text-lg">🌷</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Transition to gallery */}
+            <motion.div
               initial={{
                 opacity: 0,
                 y: 15,
@@ -432,13 +605,48 @@ const BirthdayReveal = ({
                 y: 0,
               }}
               transition={{
-                delay: 1.8,
-                duration: 0.9,
+                delay: 2.8,
+                duration: 0.7,
               }}
-              className="mx-auto mt-8 max-w-lg text-sm leading-7 text-white/60 md:text-base"
+              className="mt-12"
             >
-              {birthday.message}
-            </motion.p>
+              <p className="mx-auto max-w-sm text-sm leading-6 text-white/45">
+                There's still more of you to celebrate today.
+              </p>
+
+              <motion.button
+                type="button"
+                onClick={onComplete}
+                whileHover={{
+                  scale: 1.04,
+                }}
+                whileTap={{
+                  scale: 0.97,
+                }}
+                className="mt-5 inline-flex items-center gap-3 rounded-full border border-pink-200/20 bg-pink-200 px-6 py-4 text-sm font-medium text-[#2a1022] shadow-lg shadow-pink-400/20 transition sm:px-8"
+              >
+                <span>Come see something beautiful 🌸</span>
+
+                <motion.span
+                  animate={{
+                    x: [0, 4, 0],
+                  }}
+                  transition={{
+                    duration: 1.3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="text-base"
+                >
+                  →
+                </motion.span>
+              </motion.button>
+
+              <p className="mt-4 text-xs text-white/30">
+                Because some smiles deserve to be looked at again
+                and again. 🌸
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

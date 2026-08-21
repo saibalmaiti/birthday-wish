@@ -70,17 +70,5 @@ export const demoBirthdayConfig: BirthdayConfig = {
     imageSrc: "/images/smile.jpg",
     compliment:
       "I like it because it feels completely real. It has this way of making everything around you seem a little lighter, and honestly, I think you should have more reasons to wear it.",
-  },
-
-  gift: {
-    type: "ORDER",
-
-    orderId: "YOUR_ORDER_ID",
-    expectedDeliveryDate: "24 August",
-
-    message: "I have one last thing for you.",
-
-    revealMessage:
-      "A little something is on its way. Hope it gives you one more reason to smile :)",
-  },
+  }
 };

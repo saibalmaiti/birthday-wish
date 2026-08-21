@@ -150,7 +150,9 @@ const CreateBirthday = () => {
   const [hasGift, setHasGift] = useState(false);
 
   const [giftType, setGiftType] =
-    useState<GiftConfig["type"]>("ORDER");
+    useState<GiftConfig["type"]>(
+      "MYNTRA_GIFT_CARD"
+    );
 
   const [giftMessage, setGiftMessage] = useState(
     "I have one last thing for you."
@@ -163,16 +165,33 @@ const CreateBirthday = () => {
     "A little something is waiting for you. Hope it gives you one more reason to smile :)"
   );
 
-  const [orderId, setOrderId] = useState("");
-
   const [
-    expectedDeliveryDate,
-    setExpectedDeliveryDate,
+    giftCardNumber,
+    setGiftCardNumber,
   ] = useState("");
 
-  const [giftCardUrl, setGiftCardUrl] = useState("");
+  const [giftCardPin, setGiftCardPin] =
+    useState("");
 
-  const [giftCardCode, setGiftCardCode] = useState("");
+  const [
+    addToAccountUrl,
+    setAddToAccountUrl,
+  ] = useState("");
+
+  const [
+    giftCardImageFile,
+    setGiftCardImageFile,
+  ] = useState<File | null>(null);
+
+  const [
+    giftCardImagePreview,
+    setGiftCardImagePreview,
+  ] = useState("");
+
+  const [
+    giftCardImageError,
+    setGiftCardImageError,
+  ] = useState("");
 
   const [giftError, setGiftError] = useState("");
 
@@ -267,7 +286,6 @@ const CreateBirthday = () => {
 
     setGalleryError("");
 
-    // Allow selecting the same file again
     event.target.value = "";
   };
 
@@ -364,13 +382,56 @@ const CreateBirthday = () => {
     setGiftError("");
   };
 
+  const handleGiftCardImageChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const validationError =
+      validateImageFile(file);
+
+    if (validationError) {
+      setGiftCardImageError(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    if (giftCardImagePreview) {
+      URL.revokeObjectURL(
+        giftCardImagePreview
+      );
+    }
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setGiftCardImageFile(file);
+    setGiftCardImagePreview(previewUrl);
+    setGiftCardImageError("");
+
+    event.target.value = "";
+  };
+
   const handleRemoveGift = () => {
     setHasGift(false);
 
-    setOrderId("");
-    setExpectedDeliveryDate("");
-    setGiftCardUrl("");
-    setGiftCardCode("");
+    setGiftCardNumber("");
+    setGiftCardPin("");
+    setAddToAccountUrl("");
+
+    if (giftCardImagePreview) {
+      URL.revokeObjectURL(
+        giftCardImagePreview
+      );
+    }
+
+    setGiftCardImageFile(null);
+    setGiftCardImagePreview("");
+    setGiftCardImageError("");
     setGiftError("");
   };
 
@@ -386,6 +447,7 @@ const CreateBirthday = () => {
     setGalleryError("");
     setPreciousImageError("");
     setGiftError("");
+    setGiftCardImageError("");
     setSubmitError("");
 
     // --------------------------------
@@ -454,62 +516,45 @@ const CreateBirthday = () => {
         return;
       }
 
-      if (giftType === "ORDER") {
-        if (!orderId.trim()) {
-          setGiftError(
-            "Please enter the order ID."
-          );
-          return;
-        }
-
-        if (!expectedDeliveryDate) {
-          setGiftError(
-            "Please select the expected delivery date."
-          );
-          return;
-        }
+      if (!giftCardNumber.trim()) {
+        setGiftError(
+          "Please enter the Myntra gift card number."
+        );
+        return;
       }
 
-      if (giftType === "GIFT_CARD") {
-        if (
-          !giftCardUrl.trim() &&
-          !giftCardCode.trim()
-        ) {
+      if (!giftCardPin.trim()) {
+        setGiftError(
+          "Please enter the Myntra gift card PIN."
+        );
+        return;
+      }
+
+      if (!giftCardImageFile) {
+        setGiftCardImageError(
+          "Please upload the Myntra gift card image."
+        );
+        return;
+      }
+
+      if (addToAccountUrl.trim()) {
+        try {
+          const parsedUrl = new URL(
+            addToAccountUrl.trim()
+          );
+
+          if (
+            parsedUrl.protocol !== "https:" &&
+            parsedUrl.protocol !== "http:"
+          ) {
+            throw new Error();
+          }
+        } catch {
           setGiftError(
-            "Please provide either a gift card link or gift card code."
+            "Please enter a valid Add to Account URL."
           );
           return;
         }
-      }
-    }
-
-    // --------------------------------
-    // Build gift
-    // --------------------------------
-
-    let gift: GiftConfig | undefined;
-
-    if (hasGift) {
-      if (giftType === "ORDER") {
-        gift = {
-          type: "ORDER",
-          message: giftMessage.trim(),
-          revealMessage:
-            giftRevealMessage.trim(),
-          orderId: orderId.trim(),
-          expectedDeliveryDate,
-        };
-      } else {
-        gift = {
-          type: "GIFT_CARD",
-          message: giftMessage.trim(),
-          revealMessage:
-            giftRevealMessage.trim(),
-          giftCardUrl:
-            giftCardUrl.trim() || undefined,
-          giftCardCode:
-            giftCardCode.trim() || undefined,
-        };
       }
     }
 
@@ -526,12 +571,39 @@ const CreateBirthday = () => {
       const {
         galleryPhotos,
         preciousImageSrc,
+        giftCardImageSrc,
       } = await uploadBirthdayImages(
         slug,
         photos,
         galleryFiles,
-        preciousImageFile
+        preciousImageFile,
+        hasGift
+          ? giftCardImageFile || undefined
+          : undefined
       );
+
+      let gift: GiftConfig | undefined;
+
+      if (hasGift) {
+        if (!giftCardImageSrc) {
+          throw new Error(
+            "Failed to upload the Myntra gift card image."
+          );
+        }
+
+        gift = {
+          type: "MYNTRA_GIFT_CARD",
+          message: giftMessage.trim(),
+          revealMessage:
+            giftRevealMessage.trim(),
+          giftCardNumber:
+            giftCardNumber.trim(),
+          pin: giftCardPin.trim(),
+          addToAccountUrl:
+            addToAccountUrl.trim() || undefined,
+          cardImageSrc: giftCardImageSrc,
+        };
+      }
 
       const config: BirthdayConfig = {
         recipientName: recipientName.trim(),
@@ -936,7 +1008,7 @@ const CreateBirthday = () => {
               </span>
 
               <span className="mt-1 text-xs text-white/40">
-                Optional — add a physical gift or gift card.
+                Optional — add a gift card surprise.
               </span>
             </motion.button>
           ) : (
@@ -973,13 +1045,8 @@ const CreateBirthday = () => {
                 }}
                 options={[
                   {
-                    label:
-                      "Physical / ordered gift",
-                    value: "ORDER",
-                  },
-                  {
-                    label: "Gift card",
-                    value: "GIFT_CARD",
+                    label: "Myntra Gift Card",
+                    value: "MYNTRA_GIFT_CARD",
                   },
                 ]}
               />
@@ -996,50 +1063,70 @@ const CreateBirthday = () => {
                 onChange={setGiftRevealMessage}
               />
 
-              {giftType === "ORDER" && (
-                <>
-                  <Input
-                    label="Order ID"
-                    value={orderId}
-                    onChange={setOrderId}
-                    placeholder="Your order reference"
-                    required
-                  />
+              <Input
+                label="Myntra gift card number"
+                value={giftCardNumber}
+                onChange={setGiftCardNumber}
+                placeholder="Enter gift card number"
+                required
+              />
 
-                  <Input
-                    label="Expected delivery date"
-                    type="date"
-                    value={expectedDeliveryDate}
+              <Input
+                label="Myntra gift card PIN"
+                value={giftCardPin}
+                onChange={setGiftCardPin}
+                placeholder="Enter PIN"
+                required
+              />
+
+              <Input
+                label="Add to Account link (optional)"
+                value={addToAccountUrl}
+                onChange={setAddToAccountUrl}
+                placeholder="Paste the ADD TO ACCOUNT link from the Myntra email"
+              />
+
+              <p className="text-xs leading-5 text-white/35">
+                If available, copy the complete ADD TO ACCOUNT
+                link from the Myntra gift card email.
+              </p>
+
+              <div>
+                <label className="block">
+                  <span className="mb-2 block text-sm text-white/60">
+                    Myntra gift card image
+                  </span>
+
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={
-                      setExpectedDeliveryDate
+                      handleGiftCardImageChange
                     }
-                    required
+                    className="block w-full rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-pink-200/10 file:px-3 file:py-2 file:text-sm file:text-pink-100"
                   />
-                </>
-              )}
+                </label>
 
-              {giftType === "GIFT_CARD" && (
-                <>
-                  <Input
-                    label="Gift card link"
-                    value={giftCardUrl}
-                    onChange={setGiftCardUrl}
-                    placeholder="https://..."
+                {giftCardImagePreview && (
+                  <img
+                    src={giftCardImagePreview}
+                    alt="Myntra gift card preview"
+                    className="mt-4 max-h-80 w-full rounded-xl object-contain"
                   />
+                )}
 
-                  <Input
-                    label="Gift card code"
-                    value={giftCardCode}
-                    onChange={setGiftCardCode}
-                    placeholder="Optional code"
-                  />
+                <p className="mt-2 text-xs leading-5 text-white/35">
+                  Upload the gift card image received from
+                  Myntra. JPEG, PNG and WebP images up to 5 MB
+                  are supported.
+                </p>
 
-                  <p className="text-xs leading-5 text-white/35">
-                    Add at least one: a gift card link or gift
-                    card code.
+                {giftCardImageError && (
+                  <p className="mt-2 text-xs leading-5 text-red-200">
+                    {giftCardImageError}
                   </p>
-                </>
-              )}
+                )}
+              </div>
             </FormSection>
           )}
 

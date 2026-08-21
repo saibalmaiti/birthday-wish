@@ -19,6 +19,7 @@ type RomanticBirthdayProps = {
 const RomanticBirthday = ({ config }: RomanticBirthdayProps) => {
   const [phase, setPhase] = useState<RomanticPhase>("accept");
   const [showFinalGift, setShowFinalGift] = useState(false);
+  const [restartKey, setRestartKey] = useState(0);
 
   const finalGiftRef = useRef<HTMLDivElement>(null);
 
@@ -33,8 +34,29 @@ const RomanticBirthday = ({ config }: RomanticBirthdayProps) => {
     }, 100);
   };
 
+  const handleRestart = () => {
+    // Reset parent-controlled state
+    setPhase("accept");
+    setShowFinalGift(false);
+
+    // Force the experience and its child components
+    // to mount again with fresh internal states
+    setRestartKey((prev) => prev + 1);
+
+    // Return to the top
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  const shouldShowRestart = !config.gift || showFinalGift;
+
   return (
-    <main className="relative min-h-screen overflow-hidden">
+    <main
+      key={restartKey}
+      className="relative min-h-screen overflow-hidden"
+    >
       <AnimatePresence mode="wait">
         {/* Page 1: Gift acceptance */}
         {phase === "accept" && (
@@ -155,6 +177,64 @@ const RomanticBirthday = ({ config }: RomanticBirthdayProps) => {
               >
                 <FinalGift gift={config.gift} />
               </motion.div>
+            )}
+
+            {/* Restart experience
+                - No gift: shown after PreciousThing
+                - Gift available: shown only after FinalGift
+            */}
+            {shouldShowRestart && (
+              <section className="flex min-h-[45vh] flex-col items-center justify-center px-6 py-16 text-center">
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 20,
+                  }}
+                  whileInView={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  viewport={{
+                    once: true,
+                    amount: 0.4,
+                  }}
+                  transition={{
+                    duration: 0.7,
+                    ease: "easeOut",
+                  }}
+                >
+                  <p className="text-sm text-white/40">
+                    And that's everything I wanted to show you...
+                  </p>
+
+                  <motion.button
+                    type="button"
+                    onClick={handleRestart}
+                    whileHover={{
+                      scale: 1.05,
+                    }}
+                    whileTap={{
+                      scale: 0.97,
+                    }}
+                    className="mt-5 inline-flex items-center gap-3 rounded-full border border-pink-200/20 bg-pink-200 px-7 py-4 text-sm font-medium text-[#2a1022] shadow-lg shadow-pink-400/20"
+                  >
+                    <span>Let's do it all again</span>
+
+                    <motion.span
+                      animate={{
+                        rotate: [0, -180, -360],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                    >
+                      ↻
+                    </motion.span>
+                  </motion.button>
+                </motion.div>
+              </section>
             )}
           </motion.section>
         )}
