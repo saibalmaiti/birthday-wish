@@ -11,6 +11,7 @@ type CreateBirthdayPageResult = {
 type UploadedBirthdayImages = {
   galleryPhotos: GalleryPhoto[];
   preciousImageSrc: string;
+  giftCardImageSrc?: string;
 };
 
 const STORAGE_BUCKET = "birthday-images";
@@ -86,10 +87,18 @@ const uploadFile = async (
     });
 
   if (error) {
-    console.error("Failed to upload image:", error);
+    console.error("Failed to upload image:", {
+      message: error.message,
+      name: error.name,
+      cause: error.cause,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      filePath,
+    });
 
     throw new Error(
-      `Failed to upload ${file.name}. Please try again.`
+      `Failed to upload ${file.name}: ${error.message}`
     );
   }
 
@@ -104,7 +113,8 @@ export const uploadBirthdayImages = async (
   slug: string,
   galleryPhotos: GalleryPhoto[],
   galleryFiles: File[],
-  preciousImageFile: File
+  preciousImageFile: File,
+  giftCardImageFile?: File
 ): Promise<UploadedBirthdayImages> => {
   if (galleryPhotos.length !== galleryFiles.length) {
     throw new Error(
@@ -135,9 +145,21 @@ export const uploadBirthdayImages = async (
     "precious"
   );
 
+  let giftCardImageSrc: string | undefined;
+
+  if (giftCardImageFile) {
+    giftCardImageSrc = await uploadFile(
+      slug,
+      "gift",
+      giftCardImageFile,
+      "myntra-card"
+    );
+  }
+
   return {
     galleryPhotos: uploadedGalleryPhotos,
     preciousImageSrc,
+    giftCardImageSrc,
   };
 };
 

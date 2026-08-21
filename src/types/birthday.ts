@@ -7,30 +7,27 @@ export type GalleryPhoto = {
   rotation: number;
 };
 
-export type OrderedGift = {
-  type: "ORDER";
+export type MyntraGiftCard = {
+  type: "MYNTRA_GIFT_CARD";
 
   message: string;
+
   revealMessage: string;
 
-  orderId: string;
-  expectedDeliveryDate: string;
+  giftCardNumber: string;
+
+  pin: string;
+
+  addToAccountUrl?: string;
+
+  cardImageSrc: string;
 };
 
-export type GiftCard = {
-  type: "GIFT_CARD";
-
-  message: string;
-  revealMessage: string;
-
-  giftCardUrl?: string;
-  giftCardCode?: string;
-};
-
-export type GiftConfig = OrderedGift | GiftCard;
+export type GiftConfig = MyntraGiftCard;
 
 export type BirthdayConfig = {
   recipientName: string;
+
   version: BirthdayVersion;
 
   birthdayDate: string;
